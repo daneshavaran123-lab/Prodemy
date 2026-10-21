@@ -1,0 +1,173 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Design tokens. Components use semantic roles only (bg-card, text-muted-foreground …),
+ * so light/dark values swap here in one place.
+ * Chart tokens follow the validated data-viz reference palette.
+ */
+:root {
+  color-scheme: light;
+  --background: #f6f7f5;
+  --foreground: #15171c;
+  --card: #ffffff;
+  --card-foreground: #15171c;
+  --popover: #ffffff;
+  --popover-foreground: #15171c;
+  --primary: #0f766e;
+  --primary-hover: #0c625b;
+  --primary-foreground: #ffffff;
+  --secondary: #eff1ee;
+  --secondary-foreground: #1d2329;
+  --muted: #f0f1ee;
+  --muted-foreground: #5d6168;
+  --accent: #e6f2f0;
+  --accent-foreground: #0d4d47;
+  --border: #e1e3de;
+  --input: #d5d8d1;
+  --ring: #0f766e;
+  --sidebar: #ffffff;
+
+  /* Status (always paired with an icon or label, never color alone). */
+  --success: #13803d;
+  --success-soft: #e6f4ea;
+  --warning: #a35b00;
+  --warning-soft: #fdf1dc;
+  --danger: #c62f2f;
+  --danger-soft: #fbe9e9;
+  --info: #2a78d6;
+  --info-soft: #e7f0fb;
+  --neutral-soft: #eef0ec;
+
+  /* Charts */
+  --chart-surface: #fcfcfb;
+  --chart-grid: #e1e0d9;
+  --chart-axis: #c3c2b7;
+  --chart-muted: #898781;
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-track: #cde2fb;
+}
+
+.dark {
+  color-scheme: dark;
+  --background: #0f1012;
+  --foreground: #eceef0;
+  --card: #17191c;
+  --card-foreground: #eceef0;
+  --popover: #1c1e22;
+  --popover-foreground: #eceef0;
+  --primary: #2cb5a7;
+  --primary-hover: #3cc6b8;
+  --primary-foreground: #04201d;
+  --secondary: #23262a;
+  --secondary-foreground: #e4e6e9;
+  --muted: #212327;
+  --muted-foreground: #a2a7ae;
+  --accent: #15322f;
+  --accent-foreground: #b9ece6;
+  --border: #2a2d32;
+  --input: #34383e;
+  --ring: #2cb5a7;
+  --sidebar: #141619;
+
+  --success: #3fbf6a;
+  --success-soft: #133222;
+  --warning: #f0a93a;
+  --warning-soft: #3a2a10;
+  --danger: #f06b6b;
+  --danger-soft: #3b1717;
+  --info: #5598e7;
+  --info-soft: #14253b;
+  --neutral-soft: #24272b;
+
+  --chart-surface: #1a1a19;
+  --chart-grid: #2c2c2a;
+  --chart-axis: #383835;
+  --chart-muted: #898781;
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-track: #184f95;
+}
+
+@theme inline {
+  --font-sans: 'Vazirmatn Variable', Vazirmatn, Tahoma, system-ui, sans-serif;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-neutral-soft: var(--neutral-soft);
+  --color-chart-surface: var(--chart-surface);
+  --color-chart-grid: var(--chart-grid);
+  --color-chart-axis: var(--chart-axis);
+  --color-chart-muted: var(--chart-muted);
+  --color-series-1: var(--series-1);
+  --color-series-2: var(--series-2);
+  --color-series-3: var(--series-3);
+  --color-series-4: var(--series-4);
+  --color-series-track: var(--series-track);
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  html {
+    font-family: var(--font-sans);
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background: var(--color-background);
+    color: var(--color-foreground);
+    font-feature-settings: 'ss01';
+    min-height: 100dvh;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--color-primary) 25%, transparent);
+  }
+}
+
+@layer utilities {
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+}
