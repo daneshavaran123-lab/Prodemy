@@ -1,0 +1,760 @@
+// Karban data model (PRD §76). Enum values mirror packages/shared/src/enums.ts.
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ------------------------------------------------------------------ enums
+
+enum UserStatus {
+  PENDING
+  ACTIVE
+  DISABLED
+}
+
+enum EmploymentStatus {
+  ACTIVE
+  ON_LEAVE
+  TERMINATED
+}
+
+enum RecordStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum TaskStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  WAITING
+  BLOCKED
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum ReviewStatus {
+  NONE
+  PENDING
+  ACCEPTED
+}
+
+enum AssignmentType {
+  PRIMARY
+  COLLABORATOR
+}
+
+enum DelayReasonType {
+  WORKLOAD
+  WAITING_OTHER_DEPARTMENT
+  INCOMPLETE_INFORMATION
+  SCOPE_CHANGE
+  CUSTOMER_DELAY
+  TECHNICAL_ISSUE
+  LEAVE
+  PRIORITY_CHANGE
+  OTHER
+}
+
+enum BlockerType {
+  WAITING_PERSON
+  WAITING_DEPARTMENT
+  MISSING_INFORMATION
+  TECHNICAL
+  EXTERNAL
+  RESOURCE
+  OTHER
+}
+
+enum BlockerStatus {
+  OPEN
+  RESOLVED
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum RecurrenceFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+  CUSTOM
+}
+
+enum CommentKind {
+  COMMENT
+  DECISION
+  BLOCKER_NOTE
+}
+
+enum TaskEventType {
+  CREATED
+  ASSIGNED
+  REASSIGNED
+  COLLABORATORS_CHANGED
+  MANAGER_CHANGED
+  STATUS_CHANGED
+  PROGRESS_CHANGED
+  DEADLINE_CHANGED
+  PRIORITY_CHANGED
+  DETAILS_CHANGED
+  COMMENT_ADDED
+  ATTACHMENT_ADDED
+  ATTACHMENT_REMOVED
+  SUBTASK_ADDED
+  SUBTASK_UPDATED
+  SUBTASK_REMOVED
+  BLOCKER_ADDED
+  BLOCKER_RESOLVED
+  DELAY_REASON_ADDED
+  MARKED_OVERDUE
+  COMPLETED
+  ACCEPTED
+  REOPENED
+  CANCELLED
+}
+
+enum NotificationType {
+  TASK_ASSIGNED
+  TASK_REASSIGNED
+  COLLABORATOR_ADDED
+  DEADLINE_APPROACHING
+  DEADLINE_REACHED
+  TASK_OVERDUE
+  DELAY_REASON_REQUIRED
+  COMMENT_ADDED
+  MENTIONED
+  TASK_BLOCKED
+  PRIORITY_CHANGED
+  DEADLINE_CHANGED
+  TASK_COMPLETED
+  TASK_ACCEPTED
+  TASK_REOPENED
+  TASK_CANCELLED
+  OWNER_DEACTIVATED
+  ACCOUNT_PENDING_APPROVAL
+  WEEKLY_SUMMARY
+  DIGEST
+  SYSTEM
+}
+
+enum NotificationPriority {
+  LOW
+  NORMAL
+  CRITICAL
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  TELEGRAM
+}
+
+enum DeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
+  DIGESTED
+}
+
+enum AuditAction {
+  LOGIN
+  LOGIN_FAILED
+  LOGOUT
+  REGISTERED
+  PASSWORD_CHANGED
+  PASSWORD_RESET_REQUESTED
+  PASSWORD_RESET
+  USER_CREATED
+  USER_UPDATED
+  USER_APPROVED
+  USER_DISABLED
+  USER_ENABLED
+  ROLE_CHANGED
+  ROLE_CREATED
+  PERMISSION_CHANGED
+  DEPARTMENT_CHANGED
+  TEAM_CHANGED
+  SETTINGS_CHANGED
+  TASK_CHANGED
+  ACCESS_DENIED
+  DATA_EXPORTED
+  INTEGRATION_ERROR
+  AI_ERROR
+  NOTIFICATION_FAILURE
+}
+
+enum InsightType {
+  TASK_PARSE
+  DAILY_SUMMARY
+  MANAGER_SUMMARY
+  EXECUTIVE_SUMMARY
+  PRIORITY_SUGGESTION
+}
+
+// ------------------------------------------------------------------ identity & org
+
+/// Login identity. Every user maps 1:1 to an Employee (organizational identity).
+model User {
+  id                    String               @id @default(uuid()) @db.Uuid
+  username              String               @unique
+  email                 String?              @unique
+  passwordHash          String
+  status                UserStatus           @default(PENDING)
+  roleId                String               @db.Uuid
+  role                  Role                 @relation(fields: [roleId], references: [id])
+  employeeId            String               @unique @db.Uuid
+  employee              Employee             @relation(fields: [employeeId], references: [id])
+  mustChangePassword    Boolean              @default(false)
+  failedLoginCount      Int                  @default(0)
+  lockedUntil           DateTime?
+  lastLoginAt           DateTime?
+  passwordChangedAt     DateTime?
+  emailNotifications    Boolean              @default(true)
+  telegramNotifications Boolean              @default(true)
+  digestEnabled         Boolean              @default(true)
+  telegramChatId        String?              @unique
+  telegramLinkedAt      DateTime?
+  approvedAt            DateTime?
+  approvedById          String?              @db.Uuid
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  sessions              Session[]
+  notifications         Notification[]
+  passwordResets        PasswordResetToken[]
+  telegramLinkTokens    TelegramLinkToken[]
+  auditLogs             AuditLog[]
+  savedViews            SavedView[]
+  insights              AIInsight[]
+
+  @@index([status])
+}
+
+model Session {
+  /// sha256 of the opaque session token stored in the cookie
+  id         String    @id
+  userId     String    @db.Uuid
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime
+  lastSeenAt DateTime  @default(now())
+  revokedAt  DateTime?
+  ip         String?
+  userAgent  String?
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+}
+
+model TelegramLinkToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  code      String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+}
+
+model Employee {
+  id                 String                         @id @default(uuid()) @db.Uuid
+  employeeCode       String                         @unique
+  fullName           String
+  jobTitle           String?
+  phone              String?
+  departmentId       String                         @db.Uuid
+  department         Department                     @relation("DepartmentMembers", fields: [departmentId], references: [id])
+  teamId             String?                        @db.Uuid
+  team               Team?                          @relation("TeamMembers", fields: [teamId], references: [id], onDelete: SetNull)
+  managerId          String?                        @db.Uuid
+  manager            Employee?                      @relation("ReportsTo", fields: [managerId], references: [id], onDelete: SetNull)
+  reports            Employee[]                     @relation("ReportsTo")
+  employmentStatus   EmploymentStatus               @default(ACTIVE)
+  hiredAt            DateTime?
+  createdAt          DateTime                       @default(now())
+  updatedAt          DateTime                       @updatedAt
+  user               User?
+  managedDepartments Department[]                   @relation("DepartmentManager")
+  ledTeams           Team[]                         @relation("TeamLead")
+  ownedTasks         Task[]                         @relation("TaskPrimaryOwner")
+  managedTasks       Task[]                         @relation("TaskManager")
+  createdTasks       Task[]                         @relation("TaskCreator")
+  completedTasks     Task[]                         @relation("TaskCompletedBy")
+  assignments        TaskAssignment[]               @relation("AssignmentEmployee")
+  assignmentsMade    TaskAssignment[]               @relation("AssignmentAssignedBy")
+  subtasks           Subtask[]
+  comments           TaskComment[]
+  mentions           CommentMention[]
+  attachments        TaskAttachment[]
+  history            TaskHistory[]
+  blockersCreated    Blocker[]                      @relation("BlockerCreatedBy")
+  blockersResolved   Blocker[]                      @relation("BlockerResolvedBy")
+  blockingBlockers   Blocker[]                      @relation("BlockerBlockingEmployee")
+  delayReasons       DelayReason[]
+  recurrencesOwned   RecurrenceRule[]               @relation("RecurrenceOwner")
+  recurrencesManaged RecurrenceRule[]               @relation("RecurrenceManager")
+  recurrencesCreated RecurrenceRule[]               @relation("RecurrenceCreator")
+  performanceRecords PerformanceIntegrationRecord[]
+
+  @@index([departmentId])
+  @@index([managerId])
+  @@index([teamId])
+}
+
+model Department {
+  id               String           @id @default(uuid()) @db.Uuid
+  code             String           @unique
+  name             String           @unique
+  description      String?
+  status           RecordStatus     @default(ACTIVE)
+  /// High segregation (e.g. Finance): tasks hidden from team-scope viewers and AI context.
+  confidential     Boolean          @default(false)
+  managerId        String?          @db.Uuid
+  manager          Employee?        @relation("DepartmentManager", fields: [managerId], references: [id], onDelete: SetNull)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  employees        Employee[]       @relation("DepartmentMembers")
+  teams            Team[]
+  tasks            Task[]
+  projects         Project[]
+  blockingBlockers Blocker[]        @relation("BlockerBlockingDepartment")
+  recurrences      RecurrenceRule[]
+}
+
+model Team {
+  id           String       @id @default(uuid()) @db.Uuid
+  name         String
+  departmentId String       @db.Uuid
+  department   Department   @relation(fields: [departmentId], references: [id])
+  leadId       String?      @db.Uuid
+  lead         Employee?    @relation("TeamLead", fields: [leadId], references: [id], onDelete: SetNull)
+  status       RecordStatus @default(ACTIVE)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  members      Employee[]   @relation("TeamMembers")
+
+  @@unique([departmentId, name])
+}
+
+model Role {
+  id          String           @id @default(uuid()) @db.Uuid
+  code        String           @unique
+  name        String
+  description String?
+  /// Seeded roles cannot be deleted (their permissions remain editable).
+  system      Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  permissions RolePermission[]
+  users       User[]
+}
+
+model Permission {
+  id          String           @id @default(uuid()) @db.Uuid
+  code        String           @unique
+  description String?
+  roles       RolePermission[]
+}
+
+model RolePermission {
+  roleId       String     @db.Uuid
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permissionId String     @db.Uuid
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+}
+
+// ------------------------------------------------------------------ tasks
+
+model Project {
+  id           String       @id @default(uuid()) @db.Uuid
+  code         String       @unique
+  name         String
+  description  String?
+  departmentId String?      @db.Uuid
+  department   Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  status       RecordStatus @default(ACTIVE)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  tasks        Task[]
+}
+
+model Task {
+  id                   String           @id @default(uuid()) @db.Uuid
+  /// Human-friendly sequential number, shown as KB-<number>.
+  number               Int              @unique @default(autoincrement())
+  title                String
+  description          String
+  creatorId            String           @db.Uuid
+  creator              Employee         @relation("TaskCreator", fields: [creatorId], references: [id])
+  /// Department context at creation; kept when the owner later moves (PRD §87).
+  departmentId         String           @db.Uuid
+  department           Department       @relation(fields: [departmentId], references: [id])
+  primaryOwnerId       String           @db.Uuid
+  primaryOwner         Employee         @relation("TaskPrimaryOwner", fields: [primaryOwnerId], references: [id])
+  managerId            String           @db.Uuid
+  manager              Employee         @relation("TaskManager", fields: [managerId], references: [id])
+  startDate            DateTime
+  deadline             DateTime
+  priority             TaskPriority     @default(NORMAL)
+  status               TaskStatus       @default(NOT_STARTED)
+  progress             Int              @default(0)
+  category             String?
+  tags                 String[]         @default([])
+  estimatedEffortHours Float?
+  projectId            String?          @db.Uuid
+  project              Project?         @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  recurrenceId         String?          @db.Uuid
+  recurrence           RecurrenceRule?  @relation(fields: [recurrenceId], references: [id], onDelete: SetNull)
+  /// Local date key (YYYY-MM-DD) of the recurrence occurrence this task instantiates.
+  recurrenceOccurrence String?
+  confidential         Boolean          @default(false)
+  requiresReview       Boolean          @default(false)
+  reviewStatus         ReviewStatus     @default(NONE)
+  completedAt          DateTime?
+  completedById        String?          @db.Uuid
+  completedBy          Employee?        @relation("TaskCompletedBy", fields: [completedById], references: [id], onDelete: SetNull)
+  cancelledAt          DateTime?
+  /// Set by the deadline scanner the first time the current deadline is missed.
+  overdueAt            DateTime?
+  /// Any change on the task (comments, attachments, edits).
+  lastActivityAt       DateTime         @default(now())
+  /// Last owner-side progress signal (status/progress/subtask update).
+  lastProgressAt       DateTime         @default(now())
+  riskLevel            RiskLevel?
+  riskScore            Int?
+  riskFactors          Json?
+  riskAssessedAt       DateTime?
+  /// Optimistic-locking version (PRD §91).
+  version              Int              @default(1)
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  assignments          TaskAssignment[]
+  subtasks             Subtask[]
+  comments             TaskComment[]
+  attachments          TaskAttachment[]
+  history              TaskHistory[]
+  blockers             Blocker[]
+  delayReasons         DelayReason[]
+  notifications        Notification[]
+  insights             AIInsight[]
+
+  @@unique([recurrenceId, recurrenceOccurrence])
+  @@index([departmentId, status])
+  @@index([primaryOwnerId, status])
+  @@index([managerId, status])
+  @@index([status, deadline])
+  @@index([deadline])
+  @@index([title(ops: raw("gin_trgm_ops"))], type: Gin, map: "Task_title_trgm_idx")
+  @@index([description(ops: raw("gin_trgm_ops"))], type: Gin, map: "Task_description_trgm_idx")
+}
+
+model TaskAssignment {
+  id           String         @id @default(uuid()) @db.Uuid
+  taskId       String         @db.Uuid
+  task         Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  employeeId   String         @db.Uuid
+  employee     Employee       @relation("AssignmentEmployee", fields: [employeeId], references: [id])
+  type         AssignmentType
+  assignedAt   DateTime       @default(now())
+  assignedById String?        @db.Uuid
+  assignedBy   Employee?      @relation("AssignmentAssignedBy", fields: [assignedById], references: [id], onDelete: SetNull)
+
+  @@unique([taskId, employeeId])
+  @@index([employeeId, type])
+}
+
+model Subtask {
+  id          String     @id @default(uuid()) @db.Uuid
+  taskId      String     @db.Uuid
+  task        Task       @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  title       String
+  ownerId     String?    @db.Uuid
+  owner       Employee?  @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  deadline    DateTime?
+  status      TaskStatus @default(NOT_STARTED)
+  progress    Int        @default(0)
+  sortOrder   Int        @default(0)
+  completedAt DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([taskId])
+}
+
+model TaskComment {
+  id        String           @id @default(uuid()) @db.Uuid
+  taskId    String           @db.Uuid
+  task      Task             @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  authorId  String?          @db.Uuid
+  author    Employee?        @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  content   String
+  kind      CommentKind      @default(COMMENT)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  mentions  CommentMention[]
+
+  @@index([taskId, createdAt])
+}
+
+model CommentMention {
+  commentId  String      @db.Uuid
+  comment    TaskComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  employeeId String      @db.Uuid
+  employee   Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@id([commentId, employeeId])
+}
+
+model TaskAttachment {
+  id         String    @id @default(uuid()) @db.Uuid
+  taskId     String    @db.Uuid
+  task       Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  uploaderId String?   @db.Uuid
+  uploader   Employee? @relation(fields: [uploaderId], references: [id], onDelete: SetNull)
+  fileName   String
+  mimeType   String
+  size       Int
+  storageKey String    @unique
+  createdAt  DateTime  @default(now())
+  deletedAt  DateTime?
+
+  @@index([taskId])
+}
+
+model TaskHistory {
+  id        String        @id @default(uuid()) @db.Uuid
+  taskId    String        @db.Uuid
+  task      Task          @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  /// Null for system events (scheduler, recurrence).
+  actorId   String?       @db.Uuid
+  actor     Employee?     @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  eventType TaskEventType
+  field     String?
+  oldValue  Json?
+  newValue  Json?
+  createdAt DateTime      @default(now())
+
+  @@index([taskId, createdAt])
+  @@index([createdAt])
+}
+
+model Blocker {
+  id                   String        @id @default(uuid()) @db.Uuid
+  taskId               String        @db.Uuid
+  task                 Task          @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  type                 BlockerType
+  description          String
+  blockingEmployeeId   String?       @db.Uuid
+  blockingEmployee     Employee?     @relation("BlockerBlockingEmployee", fields: [blockingEmployeeId], references: [id], onDelete: SetNull)
+  blockingDepartmentId String?       @db.Uuid
+  blockingDepartment   Department?   @relation("BlockerBlockingDepartment", fields: [blockingDepartmentId], references: [id], onDelete: SetNull)
+  blockingPartyNote    String?
+  expectedResolutionAt DateTime?
+  status               BlockerStatus @default(OPEN)
+  createdById          String?       @db.Uuid
+  createdBy            Employee?     @relation("BlockerCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt            DateTime      @default(now())
+  resolvedAt           DateTime?
+  resolvedById         String?       @db.Uuid
+  resolvedBy           Employee?     @relation("BlockerResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
+  resolutionNote       String?
+
+  @@index([taskId, status])
+  @@index([blockingDepartmentId, status])
+}
+
+model DelayReason {
+  id          String          @id @default(uuid()) @db.Uuid
+  taskId      String          @db.Uuid
+  task        Task            @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  reasonType  DelayReasonType
+  description String?
+  /// The deadline this reason explains; a later missed deadline needs a new reason.
+  deadlineAt  DateTime
+  createdById String?         @db.Uuid
+  createdBy   Employee?       @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime        @default(now())
+
+  @@index([taskId])
+}
+
+/// Template that spawns task instances (PRD §26).
+model RecurrenceRule {
+  id                   String              @id @default(uuid()) @db.Uuid
+  title                String
+  description          String
+  departmentId         String              @db.Uuid
+  department           Department          @relation(fields: [departmentId], references: [id])
+  primaryOwnerId       String              @db.Uuid
+  primaryOwner         Employee            @relation("RecurrenceOwner", fields: [primaryOwnerId], references: [id])
+  managerId            String              @db.Uuid
+  manager              Employee            @relation("RecurrenceManager", fields: [managerId], references: [id])
+  creatorId            String              @db.Uuid
+  creator              Employee            @relation("RecurrenceCreator", fields: [creatorId], references: [id])
+  collaboratorIds      String[]            @default([])
+  priority             TaskPriority        @default(NORMAL)
+  category             String?
+  tags                 String[]            @default([])
+  projectId            String?             @db.Uuid
+  estimatedEffortHours Float?
+  confidential         Boolean             @default(false)
+  requiresReview       Boolean             @default(false)
+  frequency            RecurrenceFrequency
+  /// DAILY: every working day; CUSTOM: every N days; WEEKLY/MONTHLY: every N weeks/months.
+  interval             Int                 @default(1)
+  /// Weekly: days of week (0=Sunday … 6=Saturday).
+  weekdays             Int[]               @default([])
+  /// Monthly: day of the Jalali month (1-29); null → same day as the start date.
+  dayOfMonth           Int?
+  /// Deadline = occurrence day + durationDays, at deadlineMinutes past local midnight.
+  durationDays         Int                 @default(0)
+  deadlineMinutes      Int                 @default(1439)
+  /// First occurrence (local date key, YYYY-MM-DD).
+  startDate            String
+  endDate              String?
+  /// Next occurrence still to be generated (local date key); null when finished.
+  nextOccurrence       String?
+  lastRunAt            DateTime?
+  active               Boolean             @default(true)
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  tasks                Task[]
+
+  @@index([active, nextOccurrence])
+}
+
+// ------------------------------------------------------------------ notifications
+
+model Notification {
+  id         String                 @id @default(uuid()) @db.Uuid
+  userId     String                 @db.Uuid
+  user       User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type       NotificationType
+  priority   NotificationPriority   @default(NORMAL)
+  title      String
+  body       String
+  taskId     String?                @db.Uuid
+  task       Task?                  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  link       String?
+  /// Prevents duplicate reminders / overdue alerts for the same event.
+  dedupeKey  String?                @unique
+  readAt     DateTime?
+  createdAt  DateTime               @default(now())
+  deliveries NotificationDelivery[]
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
+}
+
+model NotificationDelivery {
+  id             String              @id @default(uuid()) @db.Uuid
+  notificationId String              @db.Uuid
+  notification   Notification        @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  channel        NotificationChannel
+  status         DeliveryStatus      @default(PENDING)
+  attempts       Int                 @default(0)
+  error          String?
+  sentAt         DateTime?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  @@index([status, channel])
+}
+
+// ------------------------------------------------------------------ platform
+
+model AuditLog {
+  id          String      @id @default(uuid()) @db.Uuid
+  actorUserId String?     @db.Uuid
+  actor       User?       @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  action      AuditAction
+  entityType  String?
+  entityId    String?
+  metadata    Json?
+  ip          String?
+  userAgent   String?
+  createdAt   DateTime    @default(now())
+
+  @@index([createdAt])
+  @@index([action, createdAt])
+  @@index([actorUserId, createdAt])
+}
+
+model SystemSetting {
+  key         String   @id
+  value       Json
+  updatedAt   DateTime @updatedAt
+  updatedById String?  @db.Uuid
+}
+
+model SavedView {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  filters   Json
+  createdAt DateTime @default(now())
+
+  @@unique([userId, name])
+}
+
+/// Log of AI outputs (drafts, summaries, suggestions) for traceability (PRD §76 AIInsight).
+model AIInsight {
+  id            String      @id @default(uuid()) @db.Uuid
+  insightType   InsightType
+  taskId        String?     @db.Uuid
+  task          Task?       @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  scopeKey      String?
+  content       Json
+  confidence    Float?
+  modelVersion  String?
+  requestedById String?     @db.Uuid
+  requestedBy   User?       @relation(fields: [requestedById], references: [id], onDelete: SetNull)
+  createdAt     DateTime    @default(now())
+
+  @@index([insightType, scopeKey, createdAt])
+}
+
+/// Raw operational metrics snapshot per employee and period, for a future Performance system.
+model PerformanceIntegrationRecord {
+  id           String   @id @default(uuid()) @db.Uuid
+  employeeId   String   @db.Uuid
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  departmentId String   @db.Uuid
+  metric       String
+  value        Float
+  /// YYYY-MM (Gregorian month) or custom period label.
+  period       String
+  generatedAt  DateTime @default(now())
+
+  @@unique([employeeId, metric, period])
+  @@index([period])
+}
